@@ -1,13 +1,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <string.h>
 #include <fcntl.h>
 #include <math.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <linux/fb.h>
-
-#define PI2 2*M_PI
+#include <cjson/cJSON.h>
 
 char *fbp=0;
 int xo;
@@ -54,6 +54,11 @@ void line(int x0, int y0, int x1, int y1) {
 
 int main(int argc, char **argv) {
 
+	if(argc < 2) {
+		printf("Please provide a filename\n");
+		return -1;
+	}
+	
 	long int screensize;	
 	struct fb_var_screeninfo vinfo;
 	struct fb_fix_screeninfo finfo;
@@ -75,11 +80,11 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	printf("%dX%d, %dbpp\n", vinfo.xres, vinfo.yres, vinfo.bits_per_pixel);
+	// printf("%dX%d, %dbpp\n", vinfo.xres, vinfo.yres, vinfo.bits_per_pixel);
 
 	screensize = vinfo.xres*vinfo.yres*vinfo.bits_per_pixel/8;
 
-	printf("mapping %dmb\n", screensize/1024/1014);
+	// printf("mapping %dmb\n", screensize/1024/1014);
 	
 	fbp = (char *)mmap(
 		0, screensize, PROT_READ | PROT_WRITE,
@@ -95,33 +100,48 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 	
-	clear(300, 300);
+	int fd = open(argv[1], O_RDONLY);
+	int len = lseek(fd, 0, SEEK_END);
+	char *data = mmap(0, len, PROT_READ, MAP_PRIVATE, fd, 0);
 
+	if((int)data == -1) {
+		printf("Couldn't mmap file\n");
+		return -1;
+	}
 	
-	double i=0;
-	double r=60;
-	float phase=0.5;
-	int cx=150;
-	int cy=150;
-	int p=5;
-	int x1, y1, x2, y2;
+	cJSON *elem, *subelem;
+	cJSON *name;
+
+	cJSON *root = cJSON_Parse(data);
+
+	int n = cJSON_GetArraySize(root);
+	int sn, i, j;
+	double x0, y0, x1, y1;
 	
-	for(i=0; i<p; i++) {
-		
-		x1 = cx+r*cos(PI2/p*i+phase);
-		y1 = cy+r*sin(PI2/p*i+phase);
+	clear(300, 218);
 
-		x2 = cx+r*cos(PI2/p*(i+1)+phase);
-		y2 = cy+r*sin(PI2/p*(i+1)+phase);
+	for(i=0; i<n; i++) {
+		elem = cJSON_GetArrayItem(root, i);
+		sn = cJSON_GetArraySize(elem);
 
-		line(x1, y1, x2, y2);
+		for(j=0; j<sn; j++) {
+			subelem = cJSON_GetArrayItem(elem, j);
+			x1 = cJSON_GetArrayItem(subelem, 0)->valuedouble;
+			y1 = cJSON_GetArrayItem(subelem, 1)->valuedouble;
+			
+			if(j>0) {
+				line(x0, y0, x1, y1);	
+			}
+			
+			x0 = x1;
+			y0 = y1;
+		}	
 	}
 
-	
-	
+	munmap(data, len);
 	munmap(fbp, screensize);
+
 	close(fbfd);
 
 	return 0;
-
 }
