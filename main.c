@@ -14,6 +14,7 @@ int xo;
 int yo;
 int bpp;
 int line_length;
+int r, g, b;
 
 void plot(int x, int y, int r, int g, int b) {
 
@@ -42,7 +43,7 @@ void line(int x0, int y0, int x1, int y1) {
 	int err = (dx>dy ? dx : -dy)/2, e2;
 	
 	for(;;) {
-		plot(x0, y0, 123, 32, 230);
+		plot(x0, y0, r, g, b);
 		
 		if(x0==x1 && y0==y1) break;
 		e2 = err;
@@ -54,10 +55,40 @@ void line(int x0, int y0, int x1, int y1) {
 
 int main(int argc, char **argv) {
 
+	int argi;
+	int scale=1;
+	int transparent=0;
+
+	r = 128;
+	g = 20;
+	b = 220;
+
+	for(argi=2; argi<argc; argi++) {
+		if(argv[argi][0] = '-')
+		switch(argv[argi][1]) {
+			case 'c': {
+				r = atoi(argv[argi+1]);
+				g = atoi(argv[argi+2]);
+				b = atoi(argv[argi+3]);
+				break;
+			}
+			case 's': {
+				scale = atoi(argv[argi+1]);
+				break;
+			}
+			case 't': {
+				transparent = 1;
+				break;
+			}
+		}
+	}
+
 	if(argc < 2) {
 		printf("Please provide a filename\n");
 		return -1;
 	}
+
+	printf("scale %i\n", scale);
 	
 	long int screensize;	
 	struct fb_var_screeninfo vinfo;
@@ -80,12 +111,8 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	// printf("%dX%d, %dbpp\n", vinfo.xres, vinfo.yres, vinfo.bits_per_pixel);
-
 	screensize = vinfo.xres*vinfo.yres*vinfo.bits_per_pixel/8;
 
-	// printf("mapping %dmb\n", screensize/1024/1014);
-	
 	fbp = (char *)mmap(
 		0, screensize, PROT_READ | PROT_WRITE,
 		MAP_SHARED, fbfd, 0);
@@ -117,8 +144,8 @@ int main(int argc, char **argv) {
 	int n = cJSON_GetArraySize(root);
 	int sn, i, j;
 	double x0, y0, x1, y1;
-	
-	clear(300, 218);
+
+	if(!transparent) clear(300*scale, 218*scale);
 
 	for(i=0; i<n; i++) {
 		elem = cJSON_GetArrayItem(root, i);
@@ -130,7 +157,7 @@ int main(int argc, char **argv) {
 			y1 = cJSON_GetArrayItem(subelem, 1)->valuedouble;
 			
 			if(j>0) {
-				line(x0, y0, x1, y1);	
+				line(x0*scale, y0*scale, x1*scale, y1*scale);	
 			}
 			
 			x0 = x1;
